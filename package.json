@@ -1,0 +1,24 @@
+{
+  "name": "rng-control",
+  "version": "1.0.0",
+  "description": "Simple webserver that start control test and deals with the ChickenRand RNG",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChickenRand/rng-control.git"
+  },
+  "author": "Andréas Livet",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/ChickenRand/rng-control/issues"
+  },
+  "homepage": "https://github.com/ChickenRand/rng-control#readme",
+  "dependencies": {
+    "express": "^4.14.1",
+    "request": "^2.79.0",
+    "ws": "^2.1.0"
+  }
+}
