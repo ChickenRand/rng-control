@@ -4,9 +4,9 @@ const app = require('express')();
 const request = require('request');
 const WebSocket = require('ws');
 
-const url = 'http://localhost:7000';
-const RNG_URL = 'localhost:8080';
-const XP_DURATION = 5;
+const url = process.env.CHICKENRAND_URL || 'http://localhost:7000';
+const RNG_URL = process.env.RNG_URL || 'localhost:8080';
+const XP_DURATION = 10;
 const RNG_ID = 1;
 const j = request.jar();
 
@@ -15,11 +15,14 @@ let ws = null;
 let queueId = null;
 let xpId = 2;
 let userId = null;
+let totalBits = 0;
+let trialsCount = 0;
 
 function resetResults() {
 	results = {
 		date : Date.now(),
-		trials : []
+		trials : [],
+		rng_control: true
 	};
 }
 
@@ -34,7 +37,7 @@ function connectingRng() {
 	ws.on('open', () => {
 		console.log('Connection with the RNG established');
 		resetResults();
-		setTimeout(stopExperiment, XP_DURATION * 1000);
+		trialsCount = 0;
 	});
 
 	ws.on('message', (data, flags) => {
@@ -49,7 +52,14 @@ function connectingRng() {
 				bitAt(trialRes.numbers[i], pos) ? trialRes.nbOnes++ : trialRes.nbZeros++;
 			}
 		}
+		totalBits += trialRes.nbOnes + trialRes.nbZeros;
 		results.trials.push(trialRes);
+
+		trialsCount++;
+		// We recieve the message each 100ms
+		if(trialsCount > XP_DURATION * 10) {
+			stopExperiment();
+		}
 	});
 }
 
@@ -59,6 +69,10 @@ function startExperiment() {
 		return;
 	}
 	request.post(`${url}/queue/start/${queueId}.json`, {jar: j}, (err, httpResponse, body) => {
+		if (err) {
+			console.error('Error when starting the experiment.');
+			console.error(err);
+		}
 		const resp = JSON.parse(body);
 		if (resp.message != null) {
 			console.error('problem');
@@ -74,10 +88,18 @@ function stopExperiment() {
 		ws = null;
 	}
 	request.post(`${url}/queue/remove/${queueId}.json`, {jar: j}, (err, httpResponse, body) => {
+		if (err) {
+			console.error('Error when leaving the queue.');
+			console.error(err);
+		}
 		queueId = null;
 		request.post(`${url}/xp/send_results/${xpId}`, {jar: j, form: {results: JSON.stringify(results), rng_id: RNG_ID, rng_control_user_id: userId}}, (err, httpResponse, body) => {
-			// TODO : RESULT ARE SENDED TWO TIMES !!
-			console.log('Results sended');
+			if (err) {
+				console.error('Error when sending experiment results.');
+				console.error(err);
+			}
+			console.log('Results sended total bits recieved : ', totalBits);
+			totalBits = 0;
 			userId = null;
 		});
 	});
@@ -86,10 +108,15 @@ function stopExperiment() {
 
 function addToQueue() {
 	// TODO : gérer le fait qu'on puisse déjà être dans la queue
+	// TODO : gérer la queue avec les states et tout
 	request.post(`${url}/queue/add/${xpId}.json`, {jar: j}, (err, httpResponse, body) => {
+		if (err) {
+			console.error('Error when entering into to the queue.');
+			console.error(err);
+		}
 		const queue = JSON.parse(body);
-		console.log('Added to queue', queue);
 		if (queue.item) {
+			console.log('Added to queue : ', queue.item.id);
 			queueId = queue.item.id;
 			if (queue.state.length === 1) {
 				console.log('Start experiment');
@@ -99,22 +126,26 @@ function addToQueue() {
 	});
 }
 
-app.post('/rng-control', (req, res) => {
-	xpId = 2//req.params['xp_id'];
-	userId = 1; //req.params['user_id'];
+function createControlXp(req, res) {
+	xpId = req.query['xp_id'];
+	userId = req.query['user_id'];
 
-
-	console.log('Recieve post request', req.params);
 	addToQueue();
-	// request.get(`${url}/queue/state.json`, (err, httpResponse, body) => {
 
-	// });
 	res.send('OK');
-});
+}
+
+// TODO : Change this GET method to a POST method. Don't know why but I can't get POST params....
+app.get('/rng-control', createControlXp);
 
 console.log('Log in to ChichenRand server as control@chickenrand.org');
 request.post(`${url}/user/login` , {jar: j, form: {email: 'control@chickenrand.org', password: 'toto'}}, (err, httpResponse, body) => {
-	console.log('Cool', j.getCookieString(url));
+	if (err) {
+		console.error('Cannot log into chickenrand, exiting.');
+		console.error(err);
+		process.exit(1);
+	}
+	console.log('Logged into chickenrand, waiting for control results to generate...');
 });
 
 
