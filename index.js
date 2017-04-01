@@ -6,6 +6,7 @@ const WebSocket = require('ws');
 
 const url = process.env.CHICKENRAND_URL || 'http://localhost:7000';
 const RNG_URL = process.env.RNG_URL || 'localhost:8080';
+const CONTROL_PASSWORD = process.env.CONTROL_PASSWORD || 'toto';
 const XP_DURATION = 10;
 const RNG_ID = 1;
 const j = request.jar();
@@ -139,7 +140,7 @@ function createControlXp(req, res) {
 app.get('/rng-control', createControlXp);
 
 console.log('Log in to ChichenRand server as control@chickenrand.org');
-request.post(`${url}/user/login` , {jar: j, form: {email: 'control@chickenrand.org', password: 'toto'}}, (err, httpResponse, body) => {
+request.post(`${url}/user/login` , {jar: j, form: {email: 'control@chickenrand.org', password: CONTROL_PASSWORD}}, (err, httpResponse, body) => {
 	if (err) {
 		console.error('Cannot log into chickenrand, exiting.');
 		console.error(err);
