@@ -9,6 +9,7 @@ const CONTROL_PASSWORD = process.env.CONTROL_PASSWORD || 'toto';
 const RNG_URL = process.env.RNG_URL || 'localhost:8080';
 
 const NB_TRIALS_PER_SECOND = 10; // We recieve the message each 100ms
+const QUEUE_UPDATE_INTERVAL = 3000; // in ms
 const RNG_CONTROL_PORT = 1337;
 const RNG_ID = 1; // TODO : use rng rest API
 const XP_DURATION = 10; // in seconds
@@ -23,6 +24,7 @@ let xpId = 2;
 let userId = null;
 let totalBits = 0;
 let trialsCount = 0;
+let pendingControls = [];
 
 function resetResults() {
 	results = {
@@ -104,6 +106,8 @@ function stopExperiment() {
 		}
 		queueId = null;
 		request.post(`${CHICKENRAND_URL}/xp/send_results/${xpId}`, {jar: COOKIE_JAR, form: {results: JSON.stringify(results), rng_id: RNG_ID, rng_control_user_id: userId}}, err => {
+			let pending;
+
 			if (err) {
 				console.error('Error when sending experiment results.');
 				console.error(err);
@@ -111,14 +115,35 @@ function stopExperiment() {
 			console.log('Results sended total bits recieved : ', totalBits);
 			totalBits = 0;
 			userId = null;
+			// If there is some pending control then launch another control right away
+			if (pendingControls.length > 0) {
+				pending = pendingControls.pop();
+				xpId = pending.xpId;
+				userId = pending.userId;
+				addToQueue();
+			}
 		});
 	});
 
 }
 
+function update() {
+	request.post(`${CHICKENRAND_URL}/queue/update/${queueId}.json`, function (err, httpResponse, body) {
+		if (err) {
+			console.error('Error when updating the queue');
+			console.error(err);
+		}
+		const data = JSON.parse(body);
+
+		if (data.item_on_top === queueId) {
+			startExperiment();
+		} else {
+			setTimeout(update, QUEUE_UPDATE_INTERVAL);
+		}
+	});
+}
+
 function addToQueue() {
-	// TODO : gérer le fait qu'on puisse déjà être dans la queue
-	// TODO : gérer la queue avec les states et tout
 	request.post(`${CHICKENRAND_URL}/queue/add/${xpId}.json`, {jar: COOKIE_JAR}, (err, httpResponse, body) => {
 		if (err) {
 			console.error('Error when entering into to the queue.');
@@ -131,7 +156,13 @@ function addToQueue() {
 			if (queue.state.length === 1) {
 				console.log('Start experiment');
 				startExperiment();
+			} else {
+				console.log('Queue is not empty waiting in the queue', queue.state.length);
+				update();
 			}
+		} else {
+			console.error('Error when entering into to the queue.');
+			console.error(queue.message);
 		}
 	});
 }
@@ -140,7 +171,12 @@ function createControlXp(req, res) {
 	xpId = req.query['xp_id'];
 	userId = req.query['user_id'];
 
-	addToQueue();
+	// We may already be in the queue
+	if (!queueId) {
+		addToQueue();
+	} else {
+		pendingControls.push({xpId, userId});
+	}
 
 	res.send('OK');
 }
