@@ -107,7 +107,6 @@ function stopExperiment() {
 		queueId = null;
 		request.post(`${CHICKENRAND_URL}/xp/send_results/${xpId}`, {jar: COOKIE_JAR, form: {results: JSON.stringify(results), rng_id: RNG_ID, rng_control_user_id: userId}}, err => {
 			let pending;
-
 			if (err) {
 				console.error('Error when sending experiment results.');
 				console.error(err);
@@ -148,6 +147,7 @@ function addToQueue() {
 		if (err) {
 			console.error('Error when entering into to the queue.');
 			console.error(err);
+			logIn(addToQueue);
 		}
 		const queue = JSON.parse(body);
 		if (queue.item) {
@@ -163,6 +163,7 @@ function addToQueue() {
 		} else {
 			console.error('Error when entering into to the queue.');
 			console.error(queue.message);
+			logIn(addToQueue);
 		}
 	});
 }
@@ -181,17 +182,25 @@ function createControlXp(req, res) {
 	res.send('OK');
 }
 
+function logIn(callback) {
+	console.log('Log in to ChichenRand server as control@chickenrand.org');
+	request.post(`${CHICKENRAND_URL}/user/login`, {jar: COOKIE_JAR, form: {email: 'control@chickenrand.org', password: CONTROL_PASSWORD}}, err => {
+		if (err) {
+			console.error('Cannot log into chickenrand, exiting.');
+			throw new Error(err);
+		}
+		console.log('Logged into chickenrand, waiting for control results to generate...');
+		if (callback) {
+			callback();
+		}
+	});
+}
+
+logIn();
+
 // TODO : Change this GET method to a POST method. Don't know why but I can't get POST params....
 app.get('/rng-control', createControlXp);
 
-console.log('Log in to ChichenRand server as control@chickenrand.org');
-request.post(`${CHICKENRAND_URL}/user/login`, {jar: COOKIE_JAR, form: {email: 'control@chickenrand.org', password: CONTROL_PASSWORD}}, err => {
-	if (err) {
-		console.error('Cannot log into chickenrand, exiting.');
-		throw new Error(err);
-	}
-	console.log('Logged into chickenrand, waiting for control results to generate...');
-});
 
 
 app.listen(RNG_CONTROL_PORT, () => {
