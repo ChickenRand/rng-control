@@ -99,7 +99,7 @@ function stopExperiment() {
 		ws.close();
 		ws = null;
 	}
-	request.post(`${CHICKENRAND_URL}/queue/remove/${queueId}.json`, {jar: COOKIE_JAR}, err => {
+	request.post(`${CHICKENRAND_URL}/queue/remove/${queueId}.json`, {jar: COOKIE_JAR}, (err, httpResponse) => {
 		if (err) {
 			console.error('Error when leaving the queue.');
 			console.error(err);
@@ -107,11 +107,13 @@ function stopExperiment() {
 		queueId = null;
 		request.post(`${CHICKENRAND_URL}/xp/send_results/${xpId}`, {jar: COOKIE_JAR, form: {results: JSON.stringify(results), rng_id: RNG_ID, rng_control_user_id: userId}}, err => {
 			let pending;
-			if (err) {
+			if (err || httpResponse.statusCode === 500) {
 				console.error('Error when sending experiment results.');
 				console.error(err);
+			} else {
+				console.log('Results sended total bits recieved : ', totalBits);
 			}
-			console.log('Results sended total bits recieved : ', totalBits);
+
 			totalBits = 0;
 			userId = null;
 			// If there is some pending control then launch another control right away
