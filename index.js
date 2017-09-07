@@ -11,7 +11,7 @@ const RNG_URL = process.env.RNG_URL || 'localhost:8080';
 const NB_TRIALS_PER_SECOND = 10; // We recieve the message each 100ms
 const QUEUE_UPDATE_INTERVAL = 3000; // in ms
 const RNG_CONTROL_PORT = process.env.PORT || 1337;
-const RNG_ID = 1; // TODO : use rng rest API
+const RNG_ID = 2; // TODO : use rng rest API
 const XP_DURATION = 10; // in seconds
 const XP_TRIALS = NB_TRIALS_PER_SECOND * XP_DURATION;
 
