@@ -98,6 +98,9 @@ function stopExperiment() {
 	if (ws) {
 		ws.close();
 		ws = null;
+	} else {
+		// We may have ws message still coming after closing
+		return;
 	}
 	request.post(`${CHICKENRAND_URL}/queue/remove/${queueId}.json`, {jar: COOKIE_JAR}, (err, httpResponse) => {
 		if (err) {
