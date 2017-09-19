@@ -50,13 +50,14 @@ function connectingRng() {
 
 	ws.on('message', data => {
 		const NB_BITS_PER_BYTE = 8;
+		// TEMP : do not store numbers it takes too much space and cpu and we don't need them for now
+		const numbers = Array.from(new Uint8Array(data))
 		const trialRes = {
-			numbers: Array.from(new Uint8Array(data)),
 			nbOnes: 0,
 			nbZeros: 0,
 			ms: Date.now() - results.date
 		};
-		trialRes.numbers.forEach(num => {
+		numbers.forEach(num => {
 			for (let pos = 0; pos < NB_BITS_PER_BYTE; pos++) {
 				if (bitAt(num, pos)) {
 					trialRes.nbOnes++;
