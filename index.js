@@ -69,7 +69,7 @@ function connectingRng() {
 		results.trials.push(trialRes);
 
 		trialsCount++;
-		if (trialsCount > XP_TRIALS) {
+		if (trialsCount >= XP_TRIALS) {
 			stopExperiment();
 		}
 	});
