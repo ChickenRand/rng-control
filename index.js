@@ -74,6 +74,11 @@ function connectingRng() {
 			stopExperiment();
 		}
 	});
+
+	ws.on('error', (e) => {
+		console.log('RNG connection error. Message :', e.message);
+		stopExperiment();
+	})
 }
 
 function startExperiment() {
@@ -88,7 +93,7 @@ function startExperiment() {
 		}
 		const resp = JSON.parse(body);
 		if (resp.message) {
-			console.error('problem');
+			console.error('problem', resp.message);
 			return;
 		}
 		connectingRng();
@@ -109,25 +114,28 @@ function stopExperiment() {
 			console.error(err);
 		}
 		queueId = null;
-		request.post(`${CHICKENRAND_URL}/xp/send_results/${xpId}`, {jar: COOKIE_JAR, form: {results: JSON.stringify(results), rng_id: RNG_ID, rng_control_user_id: userId}}, err => {
-			let pending;
-			if (err || httpResponse.statusCode === 500) {
-				console.error('Error when sending experiment results.');
-				console.error(err);
-			} else {
-				console.log('Results sended total bits recieved : ', totalBits);
-			}
+		// We may stop the expermiment with no result (ie rng connection error)
+		if(totalBits != 0) {
+			request.post(`${CHICKENRAND_URL}/xp/send_results/${xpId}`, {jar: COOKIE_JAR, form: {results: JSON.stringify(results), rng_id: RNG_ID, rng_control_user_id: userId}}, err => {
+				let pending;
+				if (err || httpResponse.statusCode === 500) {
+					console.error('Error when sending experiment results.');
+					console.error(err);
+				} else {
+					console.log('Results sended total bits recieved : ', totalBits);
+				}
 
-			totalBits = 0;
-			userId = null;
-			// If there is some pending control then launch another control right away
-			if (pendingControls.length > 0) {
-				pending = pendingControls.pop();
-				xpId = pending.xpId;
-				userId = pending.userId;
-				addToQueue();
-			}
-		});
+				totalBits = 0;
+				userId = null;
+				// If there is some pending control then launch another control right away
+				if (pendingControls.length > 0) {
+					pending = pendingControls.pop();
+					xpId = pending.xpId;
+					userId = pending.userId;
+					addToQueue();
+				}
+			});
+		}
 	});
 
 }
@@ -169,7 +177,10 @@ function addToQueue() {
 		} else {
 			console.error('Error when entering into to the queue.');
 			console.error(queue.message);
-			logIn(addToQueue);
+			//TEMP need a better error handling
+			if(queue.message === 'Erreur : Vous devez être connecté.') {
+				logIn(addToQueue);
+			}
 		}
 	});
 }
@@ -178,11 +189,13 @@ function createControlXp(req, res) {
 	xpId = req.query['xp_id'];
 	userId = req.query['user_id'];
 
-	// We may already be in the queue
-	if (!queueId) {
-		addToQueue();
-	} else {
-		pendingControls.push({xpId, userId});
+	if(xpId) {
+		// We may already be in the queue
+		if (!queueId) {
+			addToQueue();
+		} else {
+			pendingControls.push({xpId, userId});
+		}
 	}
 
 	res.send('OK');
