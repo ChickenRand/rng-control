@@ -10,6 +10,7 @@ const RNG_URL = process.env.RNG_URL || 'localhost:8080';
 
 const NB_TRIALS_PER_SECOND = 10; // We recieve the message each 100ms
 const QUEUE_UPDATE_INTERVAL = 3000; // in ms
+const TIME_BEFORE_STARTING_XP = 1000; // in ms
 const RNG_CONTROL_PORT = process.env.PORT || 1337;
 const RNG_ID = 2; // TODO : use rng rest API
 const XP_DURATION = 10; // in seconds
@@ -46,6 +47,8 @@ function connectingRng() {
 		console.log('Connection with the RNG established');
 		resetResults();
 		trialsCount = 0;
+
+		setTimeout(() => ws.send('start'), TIME_BEFORE_STARTING_XP);
 	});
 
 	ws.on('message', data => {
