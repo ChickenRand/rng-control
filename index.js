@@ -51,6 +51,25 @@ function connectingRng() {
 		setTimeout(() => ws.send('start'), TIME_BEFORE_STARTING_XP);
 	});
 
+	ws.on('close', () => {
+		if (queueId !== null) {
+			console.log('Connection closed. Remove from queue.')
+			removeFromQueue()
+				.catch(err => console.error('Error when leaving the queue.', err))
+				.then(function() {
+					let pending;
+
+					// If there is some pending control then launch another control right away
+					if (pendingControls.length > 0) {
+						pending = pendingControls.pop();
+						xpId = pending.xpId;
+						userId = pending.userId;
+						addToQueue();
+					}
+				});
+		}
+	});
+
 	ws.on('message', data => {
 		const NB_BITS_PER_BYTE = 8;
 		// TEMP : do not store numbers it takes too much space and cpu and we don't need them for now
@@ -73,14 +92,14 @@ function connectingRng() {
 		results.trials.push(trialRes);
 
 		trialsCount++;
-		if (trialsCount >= XP_TRIALS) {
+		if (trialsCount === XP_TRIALS) {
 			stopExperiment();
 		}
 	});
 
 	ws.on('error', (e) => {
 		console.log('RNG connection error. Message :', e.message);
-		stopExperiment();
+		stopExperiment(true);
 	})
 }
 
@@ -103,44 +122,49 @@ function startExperiment() {
 	});
 }
 
-function stopExperiment() {
-	if (ws) {
-		ws.close();
-		ws = null;
-	} else {
-		// We may have ws message still coming after closing
-		return;
-	}
-	request.post(`${CHICKENRAND_URL}/queue/remove/${queueId}.json`, {jar: COOKIE_JAR}, (err, httpResponse) => {
-		if (err) {
-			console.error('Error when leaving the queue.');
-			console.error(err);
-		}
-		queueId = null;
-		// We may stop the expermiment with no result (ie rng connection error)
-		if(totalBits != 0) {
-			request.post(`${CHICKENRAND_URL}/xp/send_results/${xpId}`, {jar: COOKIE_JAR, form: {results: JSON.stringify(results), rng_id: RNG_ID, rng_control_user_id: userId}}, err => {
-				let pending;
-				if (err || httpResponse.statusCode === 500) {
-					console.error('Error when sending experiment results.');
-					console.error(err);
-				} else {
-					console.log('Results sended total bits recieved : ', totalBits);
-				}
+function removeFromQueue() {
+	return new Promise((resolve, reject) => {
+		request.post(`${CHICKENRAND_URL}/queue/remove/${queueId}.json`, {jar: COOKIE_JAR}, (err, httpResponse) => {
+			queueId = null;
+			if (err) {
+				reject(err);
+			}
+			resolve();
+		});
+	});
+}
 
+function sendResults() {
+	return new Promise((resolve, reject) => {
+		request.post(`${CHICKENRAND_URL}/xp/send_results/${xpId}`, {jar: COOKIE_JAR, form: {results: JSON.stringify(results), rng_id: RNG_ID, rng_control_user_id: userId}}, (err, httpResponse, body) => {
+			if (err || httpResponse.statusCode === 500) {
+				reject(err);
+			}
+			resolve(body)
+		});
+	});
+}
+
+function stopExperiment(err) {
+	// We may stop the expermiment with no result (ie rng connection error)
+	if(err) {
+		if (ws) {
+			ws.close();
+			ws = null;
+		}
+		removeFromQueue()
+			.catch(err => console.error('Error when leaving the queue.', err));
+	} else {
+		sendResults()
+			.then(function(userXpId) {
+				console.log('Results sended total bits recieved : ', totalBits);
 				totalBits = 0;
 				userId = null;
-				// If there is some pending control then launch another control right away
-				if (pendingControls.length > 0) {
-					pending = pendingControls.pop();
-					xpId = pending.xpId;
-					userId = pending.userId;
-					addToQueue();
-				}
-			});
-		}
-	});
-
+				// RNG needs the userXpId to send raw datas
+				ws.send(JSON.stringify({userXpId: userXpId}));
+			})
+			.catch(err => console.error('Error when sending experiment results.', err));
+	}
 }
 
 function update() {
@@ -168,7 +192,7 @@ function addToQueue() {
 		}
 		const queue = JSON.parse(body);
 		if (queue.item) {
-			console.log('Added to queue : ', queue.item.id);
+			console.log('Added to queue #', queue.item.id);
 			queueId = queue.item.id;
 			if (queue.state.length === 1) {
 				console.log('Start experiment');
@@ -194,7 +218,7 @@ function createControlXp(req, res) {
 
 	if(xpId) {
 		// We may already be in the queue
-		if (!queueId) {
+		if (queueId === null) {
 			addToQueue();
 		} else {
 			pendingControls.push({xpId, userId});
