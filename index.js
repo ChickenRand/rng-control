@@ -77,7 +77,8 @@ function connectingRng() {
 		const trialRes = {
 			nbOnes: 0,
 			nbZeros: 0,
-			ms: Date.now() - results.date
+			ms: Date.now() - results.date,
+			rawDataBase64: Buffer.from(data).toString("base64")
 		};
 		numbers.forEach(num => {
 			for (let pos = 0; pos < NB_BITS_PER_BYTE; pos++) {
