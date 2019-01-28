@@ -27,6 +27,7 @@ let userId = null;
 let totalBits = 0;
 let trialsCount = 0;
 let pendingControls = [];
+let xpStarted = false;
 
 function resetResults() {
 	results = {
@@ -48,7 +49,7 @@ function connectingRng() {
 		console.log('Connection with the RNG established');
 		resetResults();
 		trialsCount = 0;
-
+		xpStarted = true;
 		setTimeout(() => ws.send('start'), TIME_BEFORE_STARTING_XP);
 	});
 
@@ -72,8 +73,10 @@ function connectingRng() {
 	});
 
 	ws.on('message', data => {
+		if(!xpStarted) {
+			return;
+		}
 		const NB_BITS_PER_BYTE = 8;
-		// TEMP : do not store numbers it takes too much space and cpu and we don't need them for now
 		const numbers = Array.from(new Uint8Array(data))
 		const trialRes = {
 			nbOnes: 0,
@@ -148,22 +151,21 @@ function sendResults() {
 }
 
 function stopExperiment(err) {
+	if (ws) {
+		ws.close();
+		ws = null;
+		xpStarted = false;
+	}
 	// We may stop the expermiment with no result (ie rng connection error)
 	if(err) {
-		if (ws) {
-			ws.close();
-			ws = null;
-		}
 		removeFromQueue()
 			.catch(err => console.error('Error when leaving the queue.', err));
 	} else {
 		sendResults()
-			.then(function(userXpId) {
+			.then(() => {
 				console.log('Results sended total bits recieved : ', totalBits);
 				totalBits = 0;
 				userId = null;
-				// RNG needs the userXpId to send raw datas
-				ws.send(JSON.stringify({userXpId: userXpId}));
 			})
 			.catch(err => console.error('Error when sending experiment results.', err));
 	}
