@@ -17,8 +17,8 @@
   },
   "homepage": "https://github.com/ChickenRand/rng-control#readme",
   "dependencies": {
-    "express": "^4.14.1",
-    "request": "^2.79.0",
-    "ws": "^2.1.0"
+    "express": "^4.16.4",
+    "request": "^2.88.0",
+    "ws": "^6.1.3"
   }
 }

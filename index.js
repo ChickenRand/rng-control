@@ -1,6 +1,7 @@
 'use strict';
 
-const app = require('express')();
+const express = require('express');
+const app = express();
 const request = require('request');
 const WebSocket = require('ws');
 
@@ -214,8 +215,8 @@ function addToQueue() {
 }
 
 function createControlXp(req, res) {
-	xpId = req.query['xp_id'];
-	userId = req.query['user_id'];
+	xpId = req.body['xp_id'];
+	userId = req.body['user_id'];
 
 	if(xpId) {
 		// We may already be in the queue
@@ -245,8 +246,8 @@ function logIn(callback) {
 
 logIn();
 
-// TODO : Change this GET method to a POST method. Don't know why but I can't get POST params....
-app.get('/rng-control', createControlXp);
+app.use(express.json());
+app.post('/rng-control', createControlXp);
 
 
 
